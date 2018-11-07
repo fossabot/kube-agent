@@ -1,0 +1,39 @@
+[
+  {
+    "type": "action",
+    "action": "kubernetes_api_call",
+    "params": {
+      "method": "GET",
+      "uri": "api\/v1\/*",
+      "body": null
+    },
+    "context": {
+      "message_uuid": "uuid",
+      "reply_to": "routing_key"
+    }
+  },
+  {
+    "type": "result",
+    "params": {
+      "result": "task or null",
+      "error": {
+        "code": 500
+      },
+      "message": "error_message"
+    },
+    "context": {
+      "message_uuid": "uuid",
+      "reply_to": "routing_key"
+    }
+  },
+  {
+    "type": "event",
+    "event": "wodby_node_health || wodby_node_log, new: task_updated || task_logs",
+    "params": {
+    },
+    "context": {
+      "message_uuid": "uuid",
+      "reply_to": "routing_key"
+    }
+  }
+]

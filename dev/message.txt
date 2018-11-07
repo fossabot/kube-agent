@@ -1,0 +1,21 @@
+ACTION
+type - action
+action - string
+params - object
+context - object
+ttl - int seconds
+
+RESULT Succeed
+type - result
+params - {"result": [null or any data], "error": null}
+context - object
+
+RESULT Failed
+type - result
+params - {"result": null, "error": {"code": "ERRCODE", "message": "Error message"}}
+context - object
+
+EVENT
+type - event
+params - object
+context - object

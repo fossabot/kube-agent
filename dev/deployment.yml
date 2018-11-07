@@ -1,0 +1,40 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    name: kube-agent
+  name: kube-agent
+  namespace: wodby
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: kube-agent
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        name: kube-agent
+    spec:
+      containers:
+      - name: kube-agent
+        image: wodby/kube-agent:dev
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: KUBE_AGENT_NODE_TOKEN
+          value: token
+        - name: KUBE_AGENT_NODE_UUID
+          value: cluster_test
+        - name: KUBE_AGENT_SERVER_HOST
+          value: host.docker.internal
+        - name: KUBE_AGENT_SERVER_PORT
+          value: 5671
+        - name: KUBE_AGENT_SKIP_VERIFY
+          value: 1
+#      - name: redis
+#        image: wodby/redis:4
+#        imagePullPolicy: IfNotPresent
