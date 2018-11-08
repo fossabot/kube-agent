@@ -79,8 +79,8 @@ func NewClient(logger *log.Logger, token string) Client {
 	client := Decorate(http.DefaultClient,
 		Logging(logger),
 		Authorization(token),
-		ContentType("application/json"),
-		UserAgent("wodby-cli"),
+		ContentType("text/json"),
+		UserAgent("kube-agent"),
 	)
 
 	return client

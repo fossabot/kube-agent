@@ -14,6 +14,12 @@ rabbitadm() {
     rabbit rabbitmqadmin -utest -ptest "${@}"
 }
 
+if kubectl get deploy kube-agent -n wodby &> /dev/null; then
+    kubectl delete deploy kube-agent -n wodby
+    kubectl create -f deployment.yml
+    exit 0
+fi
+
 if [[ ! -f certificate.pem ]]; then
     openssl req -subj '/C=US/ST=""/L=""/O=""/OU=""/CN=""/emailAddress=""' \
         -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out certificate.pem
@@ -43,28 +49,33 @@ echo "Preparing rabbitmq"
 
 queue_args='{"x-expires":86400000,"x-max-length-bytes":1048576}'
 
-rabbitadm declare queue auto_delete=false durable=true arguments="${queue_args}" name="cluster_test"
-rabbitadm declare binding source="amq.direct" destination="cluster_test" routing_key="cluster_test"
+uuid="7ed990cc-fafe-4741-85a1-55d3ba03d8d4"
+token="random-token"
+name="kube_agent_${uuid}"
 
-rabbitadm declare queue auto_delete=false durable=true arguments="${queue_args}" name="nodes"
-rabbitadm declare exchange name="wodby.nodes" type=direct durable=true auto_delete=false
-rabbitadm declare binding source="wodby.nodes" destination="nodes" routing_key="nodes"
+rabbitadm declare queue auto_delete=false durable=true arguments="${queue_args}" name="${name}_q"
+rabbitadm declare binding source="amq.direct" destination="${name}_q" routing_key="${name}_q"
 
-rabbitadm declare user name="cluster_test" password="token" tags="node"
-rabbitadm declare permission user="cluster_test" vhost=/ configure="^$" write="^wodby\.nodes$" read="^cluster_test$"
+rabbitadm declare queue auto_delete=false durable=true arguments="${queue_args}" name="kube_agent_high_q"
+rabbitadm declare queue auto_delete=false durable=true arguments="${queue_args}" name="kube_agent_low_q"
+
+rabbitadm declare exchange name="kube_agent_high.dx" type=direct durable=true auto_delete=false
+rabbitadm declare exchange name="kube_agent_low.dx" type=direct durable=true auto_delete=false
+
+rabbitadm declare binding source="kube_agent_high.dx" destination="kube_agent_high_q" routing_key="worker1"
+rabbitadm declare binding source="kube_agent_low.dx" destination="kube_agent_low_q" routing_key="worker1"
+
+rabbitadm declare user name="${name}" password="${token}" tags="kube_agent"
+rabbitadm declare permission user="${name}" vhost=/ configure="^$" write="^kube_agent_high\.dx|kube_agent_low\.dx$" read="${name}_q"
 
 if ! kubectl get ns wodby &> /dev/null; then
     kubectl create ns wodby
 fi
 
-#if kubectl get deploy agent -n wodby &> /dev/null; then
-#    kubectl delete deploy agent -n wodby
-#fi
-
 kubectl create -f deployment.yml
 
 #rabbitadm publish routing_key="cluster_test" exchange="amq.direct" \
-#    properties='{"content_type":"text/json"}' \
+#    properties='{"content_type":"text/json", "type": "kubernetes_api"}' \
 #    payload='{"type":"action","action":"is_ok","params":{},"context":{"message_uuid":"1","reply_to":"worker1"}}'
 
 #{"type":"action","action":"kubernetes_api_call","params":{"method":"GET","uri":"api\/v1\/namespaces","body":null},"context":{"message_uuid":"0468bfd4-da50-449a-a7e5-72b2a1aec52a"}}

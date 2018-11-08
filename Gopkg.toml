@@ -32,3 +32,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/streadway/amqp"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "v9.0.0"

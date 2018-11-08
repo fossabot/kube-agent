@@ -1,0 +1,120 @@
+exchange:
+  high:
+  # logs in low
+  low:
+
+properties:
+  expiration: 150 # TTL
+  reply-to: '' # Routing key
+  corellation-id: '' # Copy to response
+  content-type: 'text/json'
+  delivery-mode: 'persistent'
+  type: '' # Inbound/outbound message type
+
+inbound:
+  ping:
+    message:
+    returns:
+      $ref: '#/structures/response'
+
+  kube_api_request:
+    message:
+      method: ''
+      path: ''
+      body: ''
+    returns:
+      http_code: ''
+      http_message: ''
+      body: ''
+
+  # Limit by size.
+  stream_resource_logs:
+    message:
+      stream_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      since: 1539858796 # Default 0
+      duration: 120 # Sec. Default 60. Update duration
+      period: 5 # Sec. Default 1
+      resource: 'deploy|stateful'
+      namespace: ''
+      name: ''
+    returns:
+      $ref: '#/structures/response'
+
+  # Number of replicas can change.
+  task_kube_deploy:
+    message:
+      task_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      manifest: ''
+    returns:
+      $ref: '#/structures/response'
+
+  task_kube_run_job:
+    message:
+      task_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      manifest: ''
+    returns:
+      $ref: '#/structures/response'
+
+  task_get:
+    message:
+      task_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+    returns:
+      $ref: '#/structures/task'
+
+  task_stream_logs:
+    message:
+      task_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      duration: 120 # Sec. Default 60. Update duration
+      period: 5 # Sec. Default 1
+    returns:
+      $ref: '#/structures/response'
+
+  outbound:
+    response:
+      $ref: '#/structures/response'
+
+    task:
+      $ref: '#/structures/task'
+
+    task_logs:
+      $ref: '#/structures/task_logs'
+
+    stream_logs:
+      $ref: '#/structures/stream_logs'
+
+  structures:
+    response:
+      succeed: true
+      error:
+        code: ''
+        message: ''
+        reason: ''
+
+    task:
+      id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      status: 'succeed/failed/processing/pending'
+      error:
+        code: ''
+        message: ''
+        reason: ''
+      journal:
+        # Include pod exit with status 0.
+        $ref: '#/structures/logs'
+      logs:
+        $ref: '#/structures/logs' # Empty if status != Succeed|Failed
+
+    task_logs:
+      task_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      logs:
+        $ref: '#/structures/logs'
+
+    stream_logs:
+      stream_id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'
+      logs:
+        $ref: '#/structures/logs'
+
+    logs:
+    - timestamp: 1539858796
+      lines: "line1/nline2"
+    - timestamp: 1539858795
+      lines: "line1"

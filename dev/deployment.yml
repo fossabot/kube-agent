@@ -14,6 +14,7 @@ spec:
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 1
+    # ???
     type: RollingUpdate
   template:
     metadata:
@@ -26,15 +27,21 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: KUBE_AGENT_NODE_TOKEN
-          value: token
-        - name: KUBE_AGENT_NODE_UUID
-          value: cluster_test
+          value: random-token
+        - name: KUBE_AGENT_NAME
+          value: kube_agent_7ed990cc-fafe-4741-85a1-55d3ba03d8d4
         - name: KUBE_AGENT_SERVER_HOST
           value: host.docker.internal
         - name: KUBE_AGENT_SERVER_PORT
-          value: 5671
+          value: "443"
+        - name: KUBE_AGENT_INBOUND
+          value: kube_agent_7ed990cc-fafe-4741-85a1-55d3ba03d8d4_q
+        - name: KUBE_AGENT_OUTBOUND_HIGH
+          value: kube_agent_high.dx
+        - name: KUBE_AGENT_OUTBOUND_LOW
+          value: kube_agent_low.dx
         - name: KUBE_AGENT_SKIP_VERIFY
-          value: 1
+          value: "1"
 #      - name: redis
 #        image: wodby/redis:4
 #        imagePullPolicy: IfNotPresent

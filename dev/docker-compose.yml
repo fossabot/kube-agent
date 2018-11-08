@@ -11,7 +11,7 @@ services:
       - ./key.pem:/etc/ssl/certs/key.pem
       - ./certificate.pem:/etc/ssl/certs/certificate.pem
     ports:
-      - "5671:5671"
+      - "443:443"
 
   rabbitmq:
     container_name: "kube_agent_rabbitmq"
@@ -20,8 +20,6 @@ services:
       RABBITMQ_DEFAULT_USER: test
       RABBITMQ_DEFAULT_PASS: test
       RABBITMQ_NODENAME: rabbit@localhost
-    ports:
-    - "15672:15672"
 
 #  api:
 #    container_name: "wodby_hub_api"
