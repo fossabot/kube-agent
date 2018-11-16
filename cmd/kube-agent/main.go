@@ -60,7 +60,12 @@ func main() {
 	client := rabbitmq.NewClient(ctx, exchange, queue, addr, skipVerify)
 
 	go client.Connect()
-	go client.Listen(kubeagent.Consumer)
+
+	agent := kubeagent.NewAgent(ctx, client)
+
+	go agent.Consume()
+	go agent.Process()
+	go agent.Respond()
 
 	<-ctx.Done()
 }

@@ -1,99 +1,96 @@
 package kubeagent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/streadway/amqp"
 	"github.com/wodby/kube-agent/pkg/kubernetes"
-	"time"
+	"github.com/wodby/kube-agent/pkg/rabbitmq"
 )
 
-const MsgTypePing = "ping"
-const MsgTypeKubeApiRequest = "kube_api_request"
-const MsgTypeStreamResourceLogs = "stream_resource_logs"
-const MsgTypeTaskKubeDeploy = "task_kube_deploy"
-const MsgTypeTaskKubeRunJob = "task_kube_run_job"
-const MsgTypeTaskGet = "task_get"
-const MsgTypeTaskStreamLogs = "task_stream_logs"
-
-type KubeApiRequest struct {
-	Method string `json:"method"`
-	URI    string `json:"uri"`
-	Body   string `json:"body"`
+type ResponseMsg struct {
+	publishing amqp.Publishing
+	routingKey string
 }
 
-type KubeApiResponse struct {
-	HttpCode    string `json:"http_code"`
-	HttpMessage string `json:"http_message"`
-	Body        string `json:"body"`
+type Agent struct {
+	client    *rabbitmq.Client
+	context   context.Context
+	responses chan ResponseMsg
 }
 
-type StreamResourceLogs struct {
-	StreamId  string    `json:"stream_id"`
-	Since     time.Time `json:"since"`
-	Duration  uint      `json:"duration"`
-	Period    uint      `json:"period"`
-	Resource  string    `json:"resource"`
-	Namespace string    `json:"namespace "`
-	Name      string    `json:"name"`
+func NewAgent(ctx context.Context, c *rabbitmq.Client) *Agent {
+	agent := Agent{
+		context:   ctx,
+		client:    c,
+		responses: make(chan ResponseMsg),
+	}
+
+	return &agent
 }
 
-type TaskKubeDeploy struct {
-	TaskId   string `json:"task_id"`
-	Manifest string `json:"manifest"`
+func (agent *Agent) Consume() error {
+	deliveries, err := agent.client.Listen()
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-agent.context.Done():
+			agent.client.Close()
+		case d, ok := <-deliveries:
+			if ok {
+				fmt.Printf("Received 1 : %s \n", d.Type)
+				//if d.CorrelationId != "" && d.
+				d.Reject()
+
+				agent.processDelivery(d)
+				d.Ack(false)
+			}
+		}
+	}
 }
 
-type TaskKubeRunJob struct {
-	TaskId   string `json:"task_id"`
-	Manifest string `json:"manifest"`
+func (agent *Agent) Process() {
+
 }
 
-type TaskGet struct {
-	TaskId string `json:"task_id"`
+func (agent *Agent) response(msgType string, body []byte, d amqp.Delivery) {
+	p := amqp.Publishing{
+		ContentType:   "text/json",
+		Body:          body,
+		DeliveryMode:  amqp.Persistent,
+		Type:          msgType,
+		CorrelationId: d.CorrelationId,
+	}
+
+	agent.responses <- ResponseMsg{publishing: p, routingKey: d.ReplyTo}
 }
 
-type TaskStreamLogs struct {
-	TaskId   string `json:"task_id"`
-	Duration uint   `json:"duration"`
-	Period   uint   `json:"period"`
+func (agent *Agent) Respond(msgType string, body []byte, d amqp.Delivery) {
+	for {
+		select {
+		case <-agent.context.Done():
+			agent.client.Close()
+		case r, ok := <-agent.responses:
+			if ok {
+				agent.client.Push(r.routingKey, r.publishing)
+			}
+		}
+	}
 }
 
-type Error struct {
-	Code    uint   `json:"code"`
-	Message string `json:"message"`
-	Reason  string `json:"reason"`
+func saveTask(task Task) {
+	fmt.Println(task.Id)
 }
 
-type Response struct {
-	Succeed bool  `json:"succeed"`
-	Error   Error `json:"error"`
+func (agent *Agent) respondError() {
+
 }
 
-type Log struct {
-	Timestamp time.Time `json:"timestamp"`
-	Lines     string    `json:"lines"`
-}
-
-type Task struct {
-	Id      string `json:"id"`
-	Status  string `json:"status"`
-	Succeed bool   `json:"succeed"`
-	Error   Error  `json:"error"`
-	Journal []Log  `json:"journal"`
-	Logs    []Log  `json:"logs"`
-}
-
-type TaskLogs struct {
-	TaskId string `json:"task_id"`
-	Logs   []Log  `json:"logs"`
-}
-
-type StreamLogs struct {
-	StreamId string `json:"stream_id"`
-	Logs     []Log  `json:"logs"`
-}
-
-func Consumer(d amqp.Delivery) (err error) {
+func (agent *Agent) processDelivery(d amqp.Delivery) error {
 	switch d.Type {
 	case MsgTypePing:
 		//r := Response{Succeed: true}
@@ -101,12 +98,20 @@ func Consumer(d amqp.Delivery) (err error) {
 
 	case MsgTypeKubeApiRequest:
 		var msg KubeApiRequest
-		err = json.Unmarshal(d.Body, &msg)
-		result, err := kubernetes.ApiRequest(msg.URI, msg.Method, msg.Body)
-		fmt.Println(result)
-		if err != nil {
-			return err
-		}
+		go func() {
+			err := json.Unmarshal(d.Body, &msg)
+			code, data, err := kubernetes.ApiRequest(msg.URI, msg.Method, msg.Body)
+
+			if err != nil {
+				return nil, err
+			}
+			response := KubeApiResponse{HttpCode: code, Body: data}
+			json, err := json.Marshal(respomse)
+			if err != nil {
+				return nil, err
+			}
+			return json, err
+		}()
 		break
 
 	case MsgTypeStreamResourceLogs:
@@ -134,7 +139,12 @@ func Consumer(d amqp.Delivery) (err error) {
 		err = json.Unmarshal(d.Body, &msg)
 		break
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
 	d.Ack(false)
 
-	return nil
+	return data, nil
 }

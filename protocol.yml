@@ -23,9 +23,7 @@ inbound:
       path: ''
       body: ''
     returns:
-      http_code: ''
-      http_message: ''
-      body: ''
+      $ref: '#/structures/http_response'
 
   # Limit by size.
   stream_resource_logs:
@@ -73,6 +71,9 @@ inbound:
     response:
       $ref: '#/structures/response'
 
+    http_response:
+      $ref: '#/structures/http_response'
+
     task:
       $ref: '#/structures/task'
 
@@ -89,6 +90,10 @@ inbound:
         code: ''
         message: ''
         reason: ''
+
+    http_response:
+      http_code: ''
+      body: ''
 
     task:
       id: '28d4f2f6-a5a3-4d71-9ac2-140c0ca25465'

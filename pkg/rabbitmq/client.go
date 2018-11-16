@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"github.com/streadway/amqp"
 	"log"
 	"os"
@@ -13,23 +12,22 @@ import (
 
 // Client represents a connection to a specific queue.
 type Client struct {
-	exchange          string
-	queue             string
-	url               string
-	logger            *log.Logger
-	connection        *amqp.Connection
-	channelIn         *amqp.Channel
-	channelOut        *amqp.Channel
-	done              chan bool
-	notifyClose       chan *amqp.Error
-	notifyConfirm     chan amqp.Confirmation
-	notifyEstablished chan bool
-	isConnected       bool
-	skipVerify        bool
-	context           context.Context
+	exchange        string
+	queue           string
+	url             string
+	logger          *log.Logger
+	connection      *amqp.Connection
+	channelIn       *amqp.Channel
+	channelOut      *amqp.Channel
+	done            chan bool
+	notifyClose     chan *amqp.Error
+	notifyConfirm   chan amqp.Confirmation
+	inChannelReady  chan bool
+	outChannelReady chan bool
+	isConnected     bool
+	skipVerify      bool
+	context         context.Context
 }
-
-type Consumer func(amqp.Delivery) error
 
 const (
 	// When reconnecting to the server after connection failure
@@ -47,14 +45,15 @@ var (
 
 func NewClient(ctx context.Context, exchangeName string, queueName string, addr string, skip bool) *Client {
 	client := Client{
-		logger:            log.New(os.Stdout, "", log.LstdFlags),
-		exchange:          exchangeName,
-		queue:             queueName,
-		done:              make(chan bool),
-		notifyEstablished: make(chan bool, 1),
-		skipVerify:        skip,
-		url:               addr,
-		context:           ctx,
+		logger:          log.New(os.Stdout, "", log.LstdFlags),
+		exchange:        exchangeName,
+		queue:           queueName,
+		done:            make(chan bool),
+		inChannelReady:  make(chan bool, 1),
+		outChannelReady: make(chan bool, 1),
+		skipVerify:      skip,
+		url:             addr,
+		context:         ctx,
 	}
 
 	return &client
@@ -103,7 +102,8 @@ func (client *Client) connect() bool {
 	client.changeConnection(conn, chOut, chIn)
 	client.isConnected = true
 	log.Println("Connected!")
-	client.notifyEstablished <- true
+	client.inChannelReady <- true
+	client.outChannelReady <- true
 	return true
 }
 
@@ -127,17 +127,22 @@ func (client *Client) changeConnection(connection *amqp.Connection, channelIn *a
 // it continuously re-sends messages until a confirm is received.
 // This will block until the server sends a confirm. Errors are
 // only returned if the push action itself fails, see UnsafePush.
-func (client *Client) Push(data []byte, routingKey string, deliveryMode uint8, msgType string, correlationId string) error {
+func (client *Client) Push(routingKey string, publishing amqp.Publishing) error {
+	<-client.outChannelReady
+
 	if !client.isConnected {
 		return errors.New("failed to push push: not connected")
 	}
 	for {
-		err := client.UnsafePush(data, routingKey, deliveryMode, msgType, correlationId)
+		err := client.unsafePush(routingKey, publishing)
 		if err != nil {
 			client.logger.Println("Push failed. Retrying...")
 			continue
 		}
 		select {
+		case <-client.context.Done():
+			client.Close()
+			return nil
 		case confirm := <-client.notifyConfirm:
 			if confirm.Ack {
 				client.logger.Println("Push confirmed!")
@@ -153,7 +158,7 @@ func (client *Client) Push(data []byte, routingKey string, deliveryMode uint8, m
 // confirmation. It returns an error if it fails to connect.
 // No guarantees are provided for whether the server will
 // receive the message.
-func (client *Client) UnsafePush(data []byte, routingKey string, deliveryMode uint8, msgType string, correlationId string) error {
+func (client *Client) unsafePush(routingKey string, publishing amqp.Publishing) error {
 	if !client.isConnected {
 		return errNotConnected
 	}
@@ -162,13 +167,7 @@ func (client *Client) UnsafePush(data []byte, routingKey string, deliveryMode ui
 		routingKey,
 		true,
 		false,
-		amqp.Publishing{
-			ContentType:   "text/json",
-			Body:          data,
-			DeliveryMode:  deliveryMode,
-			Type:          msgType,
-			CorrelationId: correlationId,
-		},
+		publishing,
 	)
 }
 
@@ -176,10 +175,8 @@ func (client *Client) UnsafePush(data []byte, routingKey string, deliveryMode ui
 // It is required to call delivery.Ack when it has been
 // successfully processed, or delivery.Nack when it fails.
 // Ignoring this will cause data to build up on the server.
-func (client *Client) Listen(consumer Consumer) error {
-	<-client.notifyEstablished
-
-	fmt.Println(client.queue)
+func (client *Client) Listen() (<-chan amqp.Delivery, error) {
+	<-client.inChannelReady
 
 	deliveries, err := client.channelIn.Consume(
 		client.queue,
@@ -191,27 +188,14 @@ func (client *Client) Listen(consumer Consumer) error {
 		nil,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for {
-		select {
-		case <-client.context.Done():
-			client.close()
-			return nil
-		case d, ok := <-deliveries:
-			if ok {
-				fmt.Printf("Received 1 : %s \n", d.Type)
-				go consumer(d)
-			}
-		}
-	}
-
-	return nil
+	return deliveries, nil
 }
 
 // Close will cleanly shutdown the channel and connection.
-func (client *Client) close() error {
+func (client *Client) Close() error {
 	if !client.isConnected {
 		return errAlreadyClosed
 	}
@@ -228,7 +212,8 @@ func (client *Client) close() error {
 		return err
 	}
 	close(client.done)
-	close(client.notifyEstablished)
+	close(client.inChannelReady)
+	close(client.outChannelReady)
 	client.isConnected = false
 	return nil
 }

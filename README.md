@@ -7,6 +7,10 @@
 
 THIS PROJECT IS IN WORK IN PROGRESS STATUS.
 
-Currently supporting only RabbitMQ channel for tasks.
+## Supported channels
 
-Tasks protocol can be found at [protocol.yml](protocol.yml) and will be described later.
+Currently only RabbitMQ
+
+## Tasks
+
+[Protocol](protocol.yml)

@@ -25,6 +25,7 @@ spec:
         - name: KUBE_AGENT_NODE_TOKEN
           value: random-token
         - name: KUBE_AGENT_NAME
+          # random uuid.
           value: kube_agent_7ed990cc-fafe-4741-85a1-55d3ba03d8d4
         - name: KUBE_AGENT_SERVER_HOST
           value: host.docker.internal

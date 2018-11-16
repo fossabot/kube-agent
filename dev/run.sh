@@ -55,6 +55,7 @@ echo "Preparing rabbitmq"
 
 queue_args='{"x-expires":86400000,"x-max-length-bytes":1048576}'
 
+# random uuid.
 uuid="7ed990cc-fafe-4741-85a1-55d3ba03d8d4"
 token="random-token"
 name="kube_agent_${uuid}"
@@ -73,6 +74,7 @@ rabbitadm declare permission user="${name}" vhost=/ configure="^$" write="^kube_
 if [[ -z "${skip}" ]]; then
     if ! kubectl get ns wodby &> /dev/null; then
         kubectl create ns wodby
+        kubectl create rolebinding kube-agent --serviceaccount=wodby:kube-agent --clusterrole=cluster-admin
     fi
 
     kubectl create -f deployment.yml

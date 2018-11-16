@@ -5,7 +5,7 @@ services:
 
 env:
   global:
-    - DEP_VERSION=0.4.1
+    - DEP_VERSION=0.5.0
     - VERSION="${TRAVIS_TAG:-dev}"
     # latest tab build only from stable, see release.sh
     - TAGS="${VERSION}"
