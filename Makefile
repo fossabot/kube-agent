@@ -39,18 +39,23 @@ build:
     endif
 
 run:
+	@KUBE_AGENT_EXCHANGE=$(KUBE_AGENT_EXCHANGE) \
+	KUBE_AGENT_NAME=$(KUBE_AGENT_NAME) \
 	KUBE_AGENT_NODE_TOKEN=$(KUBE_AGENT_NODE_TOKEN) \
-	KUBE_AGENT_NODE_UUID=$(KUBE_AGENT_NODE_UUID) \
+	KUBE_AGENT_QUEUE=$(KUBE_AGENT_QUEUE) \
 	KUBE_AGENT_SERVER_HOST=$(KUBE_AGENT_SERVER_HOST) \
 	KUBE_AGENT_SERVER_PORT=$(KUBE_AGENT_SERVER_PORT) \
 	KUBE_AGENT_SKIP_VERIFY=$(KUBE_AGENT_SKIP_VERIFY) \
 		./bin/$(GOOS)-$(GOARCH)/$(APP)
 
+test:
+	echo "No tests yet :("
+
 build-image:
 	docker build -t $(REPO):$(TAG) ./
 
 dev:
-	cd ./dev && ./run.sh
+	cd ./dev && ./run.sh $(filter-out $@,$(MAKECMDGOALS))
 
 push:
     ifeq ($(LINUX_AMD64),1)
@@ -67,3 +72,7 @@ package:
     endif
 
 release: build push
+
+# https://stackoverflow.com/a/6273809/1826109
+%:
+	@:

@@ -11,11 +11,7 @@ spec:
     matchLabels:
       name: kube-agent
   strategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 1
-    # ???
-    type: RollingUpdate
+    type: Recreate
   template:
     metadata:
       labels:
@@ -34,14 +30,12 @@ spec:
           value: host.docker.internal
         - name: KUBE_AGENT_SERVER_PORT
           value: "443"
-        - name: KUBE_AGENT_INBOUND
+        - name: KUBE_AGENT_QUEUE
           value: kube_agent_7ed990cc-fafe-4741-85a1-55d3ba03d8d4_q
-        - name: KUBE_AGENT_OUTBOUND_HIGH
-          value: kube_agent_high.dx
-        - name: KUBE_AGENT_OUTBOUND_LOW
-          value: kube_agent_low.dx
+        - name: KUBE_AGENT_EXCHANGE
+          value: kube_agent.dx
         - name: KUBE_AGENT_SKIP_VERIFY
           value: "1"
 #      - name: redis
-#        image: wodby/redis:4
+#        image: wodby/redis:5
 #        imagePullPolicy: IfNotPresent

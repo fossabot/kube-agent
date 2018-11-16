@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/wodby/kube-agent/internal/app/kubeagent"
 	"github.com/wodby/kube-agent/pkg/rabbitmq"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -19,31 +23,44 @@ func main() {
 	host := os.Getenv("KUBE_AGENT_SERVER_HOST")
 	port := os.Getenv("KUBE_AGENT_SERVER_PORT")
 
+	if username == "" || password == "" || host == "" {
+		log.Fatalln("One of the following parameters is missing: username, password, host")
+	}
+
 	if port == "" {
 		port = "443"
 	}
 
-	if username == "" || password == "" || host == "" {
-		log.Fatalf("Missing required parameter")
-	}
+	addr := fmt.Sprintf("amqps://%s:%s@%s:%s/", username, password, host, port)
 
-	client := rabbitmq.Client{
-		Username:   username,
-		Password:   password,
-		Host:       host,
-		Port:       port,
-		SkipVerify: skipVerify,
-	}
-
-	fmt.Printf("%+v\n", client)
-
-	queue := os.Getenv("KUBE_AGENT_INBOUND")
+	queue := os.Getenv("KUBE_AGENT_QUEUE")
 	if queue == "" {
-		log.Fatalf("Queue must be specified")
+		log.Fatalln("Queue must be specified")
 	}
 
-	err := client.Consume(queue)
-	if err != nil {
-		log.Fatalf("%s", err)
+	exchange := os.Getenv("KUBE_AGENT_EXCHANGE")
+	if exchange == "" {
+		log.Fatalln("Exchange must be specified")
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var gracefulStop = make(chan os.Signal)
+	signal.Notify(gracefulStop, syscall.SIGTERM)
+	signal.Notify(gracefulStop, syscall.SIGINT)
+
+	go func() {
+		select {
+		case sig := <-gracefulStop:
+			fmt.Printf("caught sig: %+v", sig)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	client := rabbitmq.NewClient(ctx, exchange, queue, addr, skipVerify)
+
+	go client.Connect()
+	go client.Listen(kubeagent.Consumer)
+
+	<-ctx.Done()
 }

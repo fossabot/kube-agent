@@ -1,6 +1,10 @@
-package rabbitmq
+package kubeagent
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/streadway/amqp"
+	"github.com/wodby/kube-agent/pkg/kubernetes"
 	"time"
 )
 
@@ -87,4 +91,50 @@ type TaskLogs struct {
 type StreamLogs struct {
 	StreamId string `json:"stream_id"`
 	Logs     []Log  `json:"logs"`
+}
+
+func Consumer(d amqp.Delivery) (err error) {
+	switch d.Type {
+	case MsgTypePing:
+		//r := Response{Succeed: true}
+		break
+
+	case MsgTypeKubeApiRequest:
+		var msg KubeApiRequest
+		err = json.Unmarshal(d.Body, &msg)
+		result, err := kubernetes.ApiRequest(msg.URI, msg.Method, msg.Body)
+		fmt.Println(result)
+		if err != nil {
+			return err
+		}
+		break
+
+	case MsgTypeStreamResourceLogs:
+		var msg StreamResourceLogs
+		err = json.Unmarshal(d.Body, &msg)
+		break
+
+	case MsgTypeTaskKubeDeploy:
+		var msg TaskKubeDeploy
+		err = json.Unmarshal(d.Body, &msg)
+		break
+
+	case MsgTypeTaskKubeRunJob:
+		var msg TaskKubeRunJob
+		err = json.Unmarshal(d.Body, &msg)
+		break
+
+	case MsgTypeTaskGet:
+		var msg TaskGet
+		err = json.Unmarshal(d.Body, &msg)
+		break
+
+	case MsgTypeTaskStreamLogs:
+		var msg TaskStreamLogs
+		err = json.Unmarshal(d.Body, &msg)
+		break
+	}
+	d.Ack(false)
+
+	return nil
 }
